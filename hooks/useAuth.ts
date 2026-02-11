@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '@/lib/axios';
 
@@ -14,8 +13,6 @@ interface User {
 
 interface AuthResponse {
   user: User;
-  token: string;
-  refreshToken: string;
 }
 
 export function useAuth() {
@@ -34,27 +31,19 @@ export function useAuth() {
         const response = await axios.get('/api/auth/me');
         return response.data.user as User | null;
       } catch (error) {
+        // Always return null on error, never throw
         return null;
       }
     },
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch on mount
+    gcTime: 1000 * 60 * 5, // 5 minutes (renamed from cacheTime)
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 
-  // Auto-refresh token
-  useEffect(() => {
-    if (!user) return;
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        await axios.post('/api/auth/refresh');
-      } catch (error) {
-        console.error('Token refresh failed');
-      }
-    }, 14 * 60 * 1000); // Refresh every 14 minutes
-
-    return () => clearInterval(refreshInterval);
-  }, [user]);
+  // Remove the auto-refresh interval - let the interceptor handle it
+  // This was causing issues with navigation
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
@@ -62,7 +51,14 @@ export function useAuth() {
       return response.data as AuthResponse;
     },
     onSuccess: () => {
+      // Immediately refetch user data
       queryClient.invalidateQueries({ queryKey: ['auth', 'user'] });
+      queryClient.refetchQueries({ queryKey: ['auth', 'user'] });
+      
+      // Small delay to ensure cookies are set
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 100);
     },
     onError: (error: any) => {
       throw new Error(error.response?.data?.error || 'Login failed');
@@ -74,9 +70,11 @@ export function useAuth() {
       await axios.post('/api/auth/logout');
     },
     onSuccess: () => {
+      // Clear all queries immediately
       queryClient.setQueryData(['auth', 'user'], null);
       queryClient.clear();
       router.push('/login');
+      router.refresh();
     },
   });
 

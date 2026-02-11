@@ -2,22 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Package, 
-  Settings, 
   LogOut,
   Menu,
   X,
   User,
   BarChart3,
-  ShoppingCart,
   FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const navItems = [
@@ -36,49 +34,48 @@ const navItems = [
     href: '/dashboard/products',
     icon: Package,
   },
-  // {
-  //   title: 'Orders',
-  //   href: '/dashboard/orders',
-  //   icon: ShoppingCart,
-  // },
   {
     title: 'Profile',
     href: '/dashboard/profile',
     icon: User,
   },
-  // {
-  //   title: 'Settings',
-  //   href: '/dashboard/settings',
-  //   icon: Settings,
-  // },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
-  const { user, logout, isLoading } = useAuth();
+  const router = useRouter();
+  const { user, isLoading, logout } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Don't render anything until mounted to avoid hydration mismatch
-  if (!mounted || isLoading) {
+  useEffect(() => {
+    if (mounted && !isLoading && !user) {
+      router.push('/login');
+    }
+  }, [mounted, isLoading, user, router]);
+
+ 
+  if (!mounted) {
+    return null;
+  }
+
+  // Show loading skeleton
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="flex">
-          {/* Sidebar Skeleton */}
           <div className="hidden lg:block w-64 h-screen bg-white border-r border-gray-200 p-6">
             <Skeleton className="h-8 w-32 mb-8" />
             <div className="space-y-2">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+              {[1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
           </div>
-          
-          {/* Main content skeleton */}
           <div className="flex-1 p-8">
             <Skeleton className="h-8 w-64 mb-6" />
             <Skeleton className="h-64 w-full" />
@@ -87,7 +84,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
   if (!user) {
     return null;
   }
@@ -158,14 +154,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                    {user.name.charAt(0).toUpperCase()}
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">
-                    {user.name}
+                    {user?.name || 'User'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
                 </div>
               </div>
               
@@ -183,11 +179,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Main content */}
         <main className="flex-1 min-h-screen overflow-auto">
-          {/* Mobile top spacing to account for toggle button */}
           <div className="lg:hidden h-16"></div>
-          
           <div className="p-4 sm:p-6 lg:p-8">
-            <div className=" mx-auto">
+            <div className="mx-auto">
               {children}
             </div>
           </div>

@@ -1,27 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
 import { connectToDatabase } from '@/lib/db/connect';
+import { verifyToken } from '@/lib/auth';
 import { User } from '@/lib/models/user.model';
 
 export async function GET(request: NextRequest) {
   try {
+    await connectToDatabase();
+    
+    // Get token from cookies - don't require it
     const token = request.cookies.get('auth-token')?.value;
     
     if (!token) {
-      return NextResponse.json({ user: null }, { status: 200 });
+      // Return null user, not an error
+      return NextResponse.json({ user: null });
     }
 
-    const decoded = verifyToken(token);
-    
+    // Verify token
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (error) {
+      // Token expired or invalid - return null user
+      return NextResponse.json({ user: null });
+    }
+
+    // Check if token was successfully decoded
     if (!decoded) {
-      return NextResponse.json({ user: null }, { status: 200 });
+      return NextResponse.json({ user: null });
     }
 
-    await connectToDatabase();
-    const user = await User.findById(decoded.userId).select('-password -refreshTokens');
+    // Find user
+    const user = await User.findById(decoded.userId).select('-password');
     
     if (!user) {
-      return NextResponse.json({ user: null }, { status: 200 });
+      return NextResponse.json({ user: null });
     }
 
     return NextResponse.json({
@@ -30,10 +42,11 @@ export async function GET(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role,
-      }
+      },
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
-    return NextResponse.json({ user: null }, { status: 500 });
+    console.error('Auth me error:', error);
+    // Always return null user, never throw
+    return NextResponse.json({ user: null });
   }
 }

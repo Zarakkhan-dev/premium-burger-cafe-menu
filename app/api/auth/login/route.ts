@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
     // Check if user exists
     let user = await User.findOne({ email }).select('+password');
     
-    // If user doesn't exist, create one (for demo)
     if (!user) {
       const hashedPassword = await hashPassword(password);
       

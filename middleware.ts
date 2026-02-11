@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Routes that require authentication
 const protectedRoutes = ['/dashboard', '/api/categories', '/api/products', '/api/auth/profile'];
-// Public routes that should be accessible without authentication
-const publicRoutes = ['/', '/login', '/api/auth/login', '/api/auth/logout'];
+const publicRoutes = ['/', '/login', '/api/auth/login', '/api/auth/logout', '/api/auth/me']; // Add /api/auth/me
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -17,18 +15,34 @@ export function middleware(request: NextRequest) {
   );
   
   // Check if it's a public route
-  const isPublicRoute = publicRoutes.includes(path) || 
-    publicRoutes.some(route => path.startsWith(`${route}/`));
+  const isPublicRoute = publicRoutes.some(route => 
+    path === route || path.startsWith(`${route}/`)
+  );
 
-  // For API routes, we'll handle authentication in the route handlers
-  if (isApiRoute) {
+  // For public API routes, always allow
+  if (isPublicRoute) {
     return NextResponse.next();
   }
 
-  // Get the auth token from cookies
+  // For protected API routes, verify token
+  if (isApiRoute && isProtectedRoute) {
+    const token = request.cookies.get('auth-token')?.value;
+    
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    // You can verify the token here if needed
+    return NextResponse.next();
+  }
+
+  // Get the auth token from cookies for pages
   const token = request.cookies.get('auth-token')?.value;
 
-  // Redirect to login if trying to access protected route without token
+  // Redirect to login if trying to access protected page without token
   if (isProtectedRoute && !token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('from', path);
@@ -45,13 +59,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/auth/me).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 };
